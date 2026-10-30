@@ -1,0 +1,71 @@
+
+name: Build Smart Reem APK from ZIP
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Extract project
+        run: |
+          set -e
+          ZIP_FILE=$(find . -name '*.zip' -print -quit)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ZIP file not found"
+            exit 1
+          fi
+          mkdir extracted
+          unzip -q "$ZIP_FILE" -d extracted
+          PUBSPEC=$(find extracted -name pubspec.yaml -print -quit)
+          if [ -z "$PUBSPEC" ]; then
+            echo "Flutter project not found"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$(dirname "$PUBSPEC")" >> "$GITHUB_ENV"
+
+      - name: Prepare Android project
+        run: |
+          set -e
+          flutter create --platforms=android --org com.smartreem --project-name smart_reem android_app
+          cp "$PROJECT_DIR/pubspec.yaml" android_app/
+          rm -rf android_app/lib
+          cp -R "$PROJECT_DIR/lib" android_app/lib
+          cp "$PROJECT_DIR/analysis_options.yaml" android_app/
+          mkdir -p android_app/assets/images
+          cp "$PROJECT_DIR/assets/images/app_icon.png" android_app/assets/images/
+
+      - name: Build APK
+        run: |
+          cd android_app
+          flutter pub get
+          dart run flutter_launcher_icons
+          flutter analyze
+          flutter test
+          flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Smart-Reem-APK
+          path: android_app/build/app/outputs/flutter-apk/app-release.apk
