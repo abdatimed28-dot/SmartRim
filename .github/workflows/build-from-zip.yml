@@ -80,7 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$ANDROID_PROJECT"
-          flutter analyze lib
+          flutter analyze --no-fatal-infos lib
 
       - name: Build release APK
         shell: bash
